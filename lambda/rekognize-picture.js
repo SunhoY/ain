@@ -1,6 +1,5 @@
 'use strict';
-let AWS = require('aws-sdk');
-let Rekognition = new AWS.Rekognition();
+let {Rekognition} = require('aws-sdk');
 
 exports.handler = (event, context, callback) => {
     let {s3} = event.Records[0];
@@ -16,10 +15,15 @@ exports.handler = (event, context, callback) => {
         }
     };
 
-    Rekognition.detectFaces(params, (err, data) => {
+    let rekognition = new Rekognition();
+    rekognition.detectFaces(params, getFaceDetectionCallback(callback, fileName));
+};
+
+function getFaceDetectionCallback(callback, fileName) {
+    return (err, data) => {
         if (err) {
             console.log(err);
-            callback(err, data);
+            return callback(err, data);
         }
 
         console.log(JSON.stringify(data));
@@ -27,30 +31,32 @@ exports.handler = (event, context, callback) => {
         let landmarks = data.FaceDetails[0].Landmarks;
         let nose = landmarks.find((data) => data.Type === "nose");
 
-        let faceData = landmarks.map((landmark) => {
-            if (landmark.Type === "nose") {
-                return;
+        let faceData = landmarks.reduce((previous, current) => {
+            if (current.Type === "nose") {
+                return previous;
             }
 
-            console.log(`type: ${landmark.Type} | ${JSON.stringify(landmark)}`);
+            console.log(`type: ${current.Type} | ${JSON.stringify(current)}`);
 
-            let distance = calculateDistance(nose, landmark);
-            let inclination = calculateInclination(nose, landmark);
-
-            return {
-                type: landmark.Type,
+            let distance = calculateDistance(nose, current);
+            let inclination = calculateInclination(nose, current);
+            let faceVector = {
+                type: current.Type,
                 distance,
                 inclination
             };
-        });
+
+            console.log(`face vector: ${JSON.stringify(faceVector)}`);
+
+            return [...previous, faceVector];
+        }, []);
 
         callback(null, {
             fileName,
             faceData
         });
-    });
-};
-
+    };
+}
 
 function calculateDistance(from, to) {
     let fromX = Number(from.X);
@@ -69,5 +75,3 @@ function calculateInclination(from, to) {
 
     return (fromY - toY) / (fromX - toX);
 }
-
-
