@@ -2,25 +2,26 @@ let AWS = require('aws-sdk');
 let DynamoDB = new AWS.DynamoDB();
 
 function createDynamoItem(faceData) {
-    let dynamoItem = {};
-    dynamoItem[faceData.type] = {
-        "M": {
+    let returnObject = {};
+    returnObject[faceData.type] = {
+        M: {
             distance: {
-                "N": faceData.distance
+                S: String(faceData.distance)
             },
             inclination: {
-                "N": faceData.inclination
+                S: String(faceData.inclination)
             }
         }
     };
-
-    return dynamoItem;
+    return returnObject;
 }
 
 exports.handler = (event, context, callback) => {
-    let faceData = event.faceData.reduce((previous, current ) => {
-        return Object.assign({}, createDynamoItem(previous), createDynamoItem(current));
-    });
+    let faceData = event.faceData.reduce((previous, current) => {
+        let mapItem = Object.assign({}, previous.M, createDynamoItem(current));
+
+        return {M: mapItem};
+    }, {M: {}});
 
     let param = {
         TableName: 'face_base',
@@ -34,7 +35,7 @@ exports.handler = (event, context, callback) => {
 
     console.log(JSON.stringify(param));
 
-    DynamoDB.putItem(param, function(err, data) {
+    DynamoDB.putItem(param, function (err, data) {
         if (err) {
             callback(err);
         } else {
